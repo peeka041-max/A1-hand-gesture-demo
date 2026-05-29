@@ -11,7 +11,7 @@
   --bg: #f6f8fb;
   --accent: #087f8c;
   --accent-2: #e2542f;
-  --good: #1f9d55;
+  --danger: #b42318;
 }
 
 body {
@@ -124,21 +124,40 @@ main {
 }
 
 #inputVideo {
-  opacity: 0;
+  z-index: 1;
+  display: block;
+  background: #0b1220;
+}
+
+#outputCanvas {
+  z-index: 2;
+  pointer-events: none;
 }
 
 .loading {
   position: absolute;
+  z-index: 3;
   left: 50%;
   top: 50%;
-  width: min(360px, calc(100% - 40px));
+  width: min(420px, calc(100% - 40px));
   transform: translate(-50%, -50%);
   padding: 16px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.94);
   color: var(--ink);
   text-align: center;
   font-weight: 700;
+  line-height: 1.5;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
+}
+
+.stage.is-ready .loading {
+  display: none;
+}
+
+.stage.is-error .loading {
+  display: block;
+  color: var(--danger);
 }
 
 .panel-header {

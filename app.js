@@ -1,3 +1,4 @@
+const stage = document.getElementById("stage");
 const videoElement = document.getElementById("inputVideo");
 const canvasElement = document.getElementById("outputCanvas");
 const canvasCtx = canvasElement.getContext("2d");
@@ -9,11 +10,49 @@ const handednessEl = document.getElementById("handedness");
 const fingerCountEl = document.getElementById("fingerCount");
 const gestureEl = document.getElementById("gesture");
 
+const TEXT = {
+  fist: "\u63e1\u62f3",
+  openPalm: "\u5f20\u5f00\u624b\u638c / \u6570\u5b57 5",
+  number: "\u6570\u5b57",
+  noHand: "\u672a\u68c0\u6d4b\u5230\u624b",
+  running: "\u8fd0\u884c\u4e2d",
+  left: "\u5de6\u624b",
+  right: "\u53f3\u624b",
+  unknown: "\u672a\u77e5",
+  detected: "\u5df2\u68c0\u6d4b",
+  ready: "\u6444\u50cf\u5934\u5df2\u542f\u52a8",
+  cameraError:
+    "\u65e0\u6cd5\u6253\u5f00\u6444\u50cf\u5934\u3002\u8bf7\u786e\u8ba4\u5df2\u5141\u8bb8\u6d4f\u89c8\u5668\u6444\u50cf\u5934\u6743\u9650\uff0c\u5e76\u4f7f\u7528 HTTPS \u6216 localhost \u8bbf\u95ee\u9875\u9762\u3002",
+  cameraFailed: "\u6444\u50cf\u5934\u5931\u8d25",
+  modelError:
+    "\u624b\u90e8\u68c0\u6d4b\u6a21\u578b\u52a0\u8f7d\u6216\u8fd0\u884c\u5931\u8d25\u3002\u8bf7\u5237\u65b0\u9875\u9762\uff0c\u5e76\u786e\u8ba4 MediaPipe CDN \u53ef\u6b63\u5e38\u8bbf\u95ee\u3002",
+};
+
+function setStageReady() {
+  stage.classList.remove("is-loading", "is-error");
+  stage.classList.add("is-ready");
+}
+
+function setStageError(message) {
+  stage.classList.remove("is-loading", "is-ready");
+  stage.classList.add("is-error");
+  loading.textContent = message;
+}
+
 function resizeCanvas() {
   const rect = canvasElement.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
-  canvasElement.width = Math.round(rect.width * dpr);
-  canvasElement.height = Math.round(rect.height * dpr);
+  const width = Math.max(1, Math.round(rect.width * dpr));
+  const height = Math.max(1, Math.round(rect.height * dpr));
+
+  if (canvasElement.width !== width || canvasElement.height !== height) {
+    canvasElement.width = width;
+    canvasElement.height = height;
+  }
+}
+
+function clearOverlay() {
+  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 }
 
 function isFingerOpen(landmarks, tip, pip) {
@@ -38,9 +77,9 @@ function countOpenFingers(landmarks, label) {
 }
 
 function gestureName(count) {
-  if (count === 0) return "握拳";
-  if (count === 5) return "张开手掌 / 数字 5";
-  return `数字 ${count}`;
+  if (count === 0) return TEXT.fist;
+  if (count === 5) return TEXT.openPalm;
+  return `${TEXT.number} ${count}`;
 }
 
 function drawHand(landmarks) {
@@ -55,46 +94,62 @@ function drawHand(landmarks) {
   });
 }
 
+function resetResultsForNoHand() {
+  handCountEl.textContent = "0";
+  handednessEl.textContent = "--";
+  fingerCountEl.textContent = "0";
+  gestureEl.textContent = TEXT.noHand;
+  statusEl.textContent = TEXT.running;
+}
+
 function onResults(results) {
   resizeCanvas();
-  canvasCtx.save();
-  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-  canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+  clearOverlay();
 
   const hands = results.multiHandLandmarks || [];
   const handedness = results.multiHandedness || [];
 
   if (hands.length === 0) {
-    handCountEl.textContent = "0";
-    handednessEl.textContent = "--";
-    fingerCountEl.textContent = "0";
-    gestureEl.textContent = "未检测到手";
-    statusEl.textContent = "运行中";
-  } else {
-    const labels = [];
-    const counts = [];
-
-    hands.forEach((landmarks, index) => {
-      drawHand(landmarks);
-      const label = handedness[index]?.label || "Unknown";
-      const count = countOpenFingers(landmarks, label);
-      labels.push(label === "Left" ? "左手" : label === "Right" ? "右手" : "未知");
-      counts.push(count);
-    });
-
-    handCountEl.textContent = String(hands.length);
-    handednessEl.textContent = labels.join("、");
-    fingerCountEl.textContent = counts.join("、");
-    gestureEl.textContent = counts.map(gestureName).join("、");
-    statusEl.textContent = "已检测";
+    resetResultsForNoHand();
+    return;
   }
 
-  canvasCtx.restore();
-  loading.hidden = true;
+  const labels = [];
+  const counts = [];
+
+  hands.forEach((landmarks, index) => {
+    drawHand(landmarks);
+    const label = handedness[index]?.label || "Unknown";
+    const count = countOpenFingers(landmarks, label);
+    labels.push(label === "Left" ? TEXT.left : label === "Right" ? TEXT.right : TEXT.unknown);
+    counts.push(count);
+  });
+
+  handCountEl.textContent = String(hands.length);
+  handednessEl.textContent = labels.join("\u3001");
+  fingerCountEl.textContent = counts.join("\u3001");
+  gestureEl.textContent = counts.map(gestureName).join("\u3001");
+  statusEl.textContent = TEXT.detected;
+}
+
+function ensureVideoVisible() {
+  if (videoElement.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+    setStageReady();
+    statusEl.textContent = TEXT.ready;
+  }
 }
 
 async function boot() {
   resizeCanvas();
+
+  if (!window.Hands || !window.Camera || !window.drawConnectors || !window.drawLandmarks) {
+    setStageError(TEXT.modelError);
+    statusEl.textContent = TEXT.cameraFailed;
+    return;
+  }
+
+  videoElement.addEventListener("loadeddata", ensureVideoVisible);
+  videoElement.addEventListener("playing", ensureVideoVisible);
 
   const hands = new Hands({
     locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
@@ -111,7 +166,13 @@ async function boot() {
 
   const camera = new Camera(videoElement, {
     onFrame: async () => {
-      await hands.send({ image: videoElement });
+      try {
+        await hands.send({ image: videoElement });
+      } catch (error) {
+        console.error(error);
+        setStageError(TEXT.modelError);
+        statusEl.textContent = TEXT.cameraFailed;
+      }
     },
     width: 1280,
     height: 720,
@@ -119,13 +180,20 @@ async function boot() {
 
   try {
     await camera.start();
-    statusEl.textContent = "运行中";
+    statusEl.textContent = TEXT.running;
+    ensureVideoVisible();
   } catch (error) {
-    loading.textContent = "无法打开摄像头，请确认浏览器权限或使用 HTTPS / localhost 访问。";
-    statusEl.textContent = "摄像头失败";
     console.error(error);
+    clearOverlay();
+    resetResultsForNoHand();
+    setStageError(TEXT.cameraError);
+    statusEl.textContent = TEXT.cameraFailed;
   }
 }
 
-window.addEventListener("resize", resizeCanvas);
+window.addEventListener("resize", () => {
+  resizeCanvas();
+  clearOverlay();
+});
+
 boot();
