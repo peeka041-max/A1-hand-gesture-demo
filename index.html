@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>A1 | 手语识别方向 Demo</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">A1 | 手语识别方向</p>
+        <h1>手部关键点检测与简单手势识别 Demo</h1>
+      </div>
+      <a class="repo-link" href="#demo">打开 Demo</a>
+    </header>
+
+    <main>
+      <section class="intro">
+        <div>
+          <h2>个人介绍</h2>
+          <p>
+            我是中欧工程技术学院信息工程大一的黄曾心奕。我对计算机视觉和深度学习方向感兴趣，希望通过这个项目快速熟悉一个陌生 CV
+            框架的完整流程：调用摄像头、实时检测、绘制关键点，并在关键点基础上做简单的手势分析。
+          </p>
+        </div>
+        <div>
+          <h2>技术方案</h2>
+          <p>
+            本项目使用 MediaPipe Hands 的 JavaScript 版本在浏览器端运行，不需要后端服务。
+            摄像头画面送入模型后返回 21 个手部关键点，再根据指尖和关节位置估计伸出手指数，
+            同时结合 MediaPipe 的 handedness 信息区分左手和右手。
+          </p>
+        </div>
+      </section>
+
+      <section id="demo" class="demo">
+        <div class="stage">
+          <video id="inputVideo" playsinline></video>
+          <canvas id="outputCanvas"></canvas>
+          <div id="loading" class="loading">正在加载模型并请求摄像头权限...</div>
+        </div>
+
+        <aside class="panel">
+          <div class="panel-header">
+            <h2>实时结果</h2>
+            <span id="status" class="badge">初始化</span>
+          </div>
+
+          <dl class="metrics">
+            <div>
+              <dt>检测到的手</dt>
+              <dd id="handCount">0</dd>
+            </div>
+            <div>
+              <dt>左右手</dt>
+              <dd id="handedness">--</dd>
+            </div>
+            <div>
+              <dt>伸出手指数</dt>
+              <dd id="fingerCount">0</dd>
+            </div>
+            <div>
+              <dt>识别手势</dt>
+              <dd id="gesture">等待中</dd>
+            </div>
+          </dl>
+
+          <div class="tips">
+            <h3>可尝试动作</h3>
+            <p>握拳、张开手掌、比数字 1-5、左右手切换。</p>
+          </div>
+        </aside>
+      </section>
+
+      <section class="writeup">
+        <h2>实现思路</h2>
+        <p>
+          页面启动后通过 MediaPipe Camera Utils 获取摄像头视频流，并将每一帧传给 Hands
+          模型。模型输出手部关键点后，Canvas 负责画出骨架连线和关键点。手势部分没有额外训练模型，
+          而是基于关键点的几何关系做规则判断：拇指根据横向位置估计是否伸出，其余四指根据指尖是否高于
+          PIP 关节判断是否伸出，最后把伸出的数量映射为“握拳”“数字 1-5”“张开手掌”等简单结果。
+        </p>
+        <p>
+          Demo 演示视频可以录屏 30 秒到 1 分钟后命名为 <code>demo.mp4</code>，放在当前项目目录。
+          如果需要嵌入视频，可把下面的注释代码取消，并替换为自己的视频文件。
+        </p>
+        <!--
+        <video class="demo-video" controls src="demo.mp4"></video>
+        -->
+      </section>
+    </main>
+
+    <footer>
+      <p>基于 MediaPipe Hands 构建。部署到 GitHub Pages 后即可提交访问链接。</p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
