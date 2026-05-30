@@ -23,7 +23,6 @@ const TEXT = {
   number: "数字",
   noHand: "未检测到手",
   noHandHint: "请将手放到画面中央并保持光线充足",
-  running: "运行中",
   left: "左手",
   right: "右手",
   unknown: "未知",
@@ -138,29 +137,27 @@ function updateResults(hands, handedness) {
   statusEl.textContent = TEXT.detected;
 }
 
-function drawCameraFrame() {
+function drawOverlay() {
   resizeCanvas();
   canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
-  if (hasUsableVideoFrame()) {
-    canvasCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
-  }
-
   latestHands.forEach((landmarks) => {
-    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {
-      color: "#00d4ff",
-      lineWidth: 4,
-    });
-    drawLandmarks(canvasCtx, landmarks, {
-      color: "#ffcf33",
-      lineWidth: 2,
-      radius: 4,
-    });
+    if (window.drawConnectors && window.drawLandmarks && window.HAND_CONNECTIONS) {
+      drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {
+        color: "#00d4ff",
+        lineWidth: 4,
+      });
+      drawLandmarks(canvasCtx, landmarks, {
+        color: "#ffcf33",
+        lineWidth: 2,
+        radius: 4,
+      });
+    }
   });
 }
 
 function renderLoop() {
-  drawCameraFrame();
+  drawOverlay();
   requestAnimationFrame(renderLoop);
 }
 
@@ -208,6 +205,8 @@ async function startCamera() {
   });
 
   videoElement.srcObject = stream;
+  setStageReady();
+  statusEl.textContent = TEXT.cameraReady;
 
   await new Promise((resolve, reject) => {
     videoElement.onloadedmetadata = async () => {
@@ -222,8 +221,11 @@ async function startCamera() {
   });
 
   await waitForVideoDimensions();
-  setStageReady();
-  statusEl.textContent = TEXT.cameraReady;
+  console.log("[Camera] started", {
+    readyState: videoElement.readyState,
+    videoWidth: videoElement.videoWidth,
+    videoHeight: videoElement.videoHeight,
+  });
 }
 
 async function initMediaPipe() {
