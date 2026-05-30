@@ -15,12 +15,14 @@ let latestHandedness = [];
 let handsModel = null;
 let isSendingFrame = false;
 let mediaPipeAvailable = false;
+let sendFrameCount = 0;
 
 const TEXT = {
   fist: "握拳",
   openPalm: "张开手掌 / 数字 5",
   number: "数字",
   noHand: "未检测到手",
+  noHandHint: "请将手放到画面中央并保持光线充足",
   running: "运行中",
   left: "左手",
   right: "右手",
@@ -55,6 +57,27 @@ function resizeCanvas() {
     canvasElement.width = width;
     canvasElement.height = height;
   }
+}
+
+function hasUsableVideoFrame() {
+  return (
+    videoElement.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+    videoElement.videoWidth > 0 &&
+    videoElement.videoHeight > 0
+  );
+}
+
+function waitForVideoDimensions() {
+  return new Promise((resolve) => {
+    const check = () => {
+      if (hasUsableVideoFrame()) {
+        resolve();
+        return;
+      }
+      requestAnimationFrame(check);
+    };
+    check();
+  });
 }
 
 function isFingerOpen(landmarks, tip, pip) {
@@ -94,6 +117,7 @@ function resetResultsForNoHand() {
 function updateResults(hands, handedness) {
   if (hands.length === 0) {
     resetResultsForNoHand();
+    statusEl.textContent = mediaPipeAvailable ? TEXT.noHandHint : TEXT.modelReady;
     return;
   }
 
@@ -118,7 +142,7 @@ function drawCameraFrame() {
   resizeCanvas();
   canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
-  if (videoElement.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+  if (hasUsableVideoFrame()) {
     canvasCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
   }
 
@@ -142,7 +166,16 @@ function renderLoop() {
 
 async function sendFrameToMediaPipe() {
   if (!mediaPipeAvailable || !handsModel || isSendingFrame) return;
-  if (videoElement.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
+  if (!hasUsableVideoFrame()) return;
+
+  sendFrameCount += 1;
+  if (sendFrameCount % 60 === 0) {
+    console.log("[MediaPipe Hands] sending frame", {
+      readyState: videoElement.readyState,
+      videoWidth: videoElement.videoWidth,
+      videoHeight: videoElement.videoHeight,
+    });
+  }
 
   isSendingFrame = true;
   try {
@@ -166,7 +199,14 @@ async function startCamera() {
     throw new Error("getUserMedia is not supported in this browser.");
   }
 
-  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: {
+      width: 1280,
+      height: 720,
+      facingMode: "user",
+    },
+  });
+
   videoElement.srcObject = stream;
 
   await new Promise((resolve, reject) => {
@@ -181,6 +221,7 @@ async function startCamera() {
     videoElement.onerror = () => reject(new Error("Video element failed to load camera stream."));
   });
 
+  await waitForVideoDimensions();
   setStageReady();
   statusEl.textContent = TEXT.cameraReady;
 }
@@ -196,19 +237,16 @@ async function initMediaPipe() {
 
   handsModel.setOptions({
     maxNumHands: 2,
-    modelComplexity: 1,
-    minDetectionConfidence: 0.65,
-    minTrackingConfidence: 0.65,
+    modelComplexity: 0,
+    selfieMode: true,
+    minDetectionConfidence: 0.35,
+    minTrackingConfidence: 0.35,
   });
 
   handsModel.onResults((results) => {
     latestHands = results.multiHandLandmarks || [];
     latestHandedness = results.multiHandedness || [];
     updateResults(latestHands, latestHandedness);
-
-    if (latestHands.length === 0) {
-      statusEl.textContent = TEXT.modelReady;
-    }
   });
 
   mediaPipeAvailable = true;
@@ -231,6 +269,7 @@ async function boot() {
 
   try {
     await initMediaPipe();
+    await waitForVideoDimensions();
     detectionLoop();
   } catch (error) {
     console.error(error);
